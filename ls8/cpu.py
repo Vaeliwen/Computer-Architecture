@@ -2,14 +2,25 @@
 
 import sys
 
+LDI = 1
+PRN = 2
+HLT = 3
+MUL = 4
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        """Currently the register and memory are stored here."""
+        """Contains Registry, RAM, Program Counter and branchtable."""
+        self.pc = 0
         self.reg = [0] * 8
         self.ram = [0] * 256
+        self.branchtable = {}
+        self.branchtable[LDI] = self.handle_LDI
+        self.branchtable[PRN] = self.handle_PRN
+        self.branchtable[MUL] = self.handle_MUL
+        self.branchtable[HLT] = self.handle_HLT
 
     def ram_read(self, mar):
         "Reads the selected address within the RAM."
@@ -28,31 +39,31 @@ class CPU:
 
         # For now, we've just hardcoded a program:
 
-        LDI = 0b10000010
-        PRN = 0b01000111
-        HLT = 0b00000001
-
-
-        program = [
-            # From print8.ls8
-            # 0b10000010, # LDI R0,8
-            # 0b00000000,
-            # 0b00001000,
-            # 0b01000111, # PRN R0
-            # 0b00000000,
-            # 0b00000001 # HLT
-
-            LDI,
-            0,
-            8,
-            PRN,
-            0,
-            HLT
-        ]
+        if len(sys.argv) == 1:
+            print("ERROR: No program loaded.  Please specify program directory.")
+            exit(1)
+        else:
+            program = open(sys.argv[1])
 
         for instruction in program:
-            self.raw_write(instruction, address)
-            address += 1
+                splitstring = instruction.split()
+                if splitstring == []:
+                    pass
+                elif splitstring[0] == "#":
+                    pass
+                elif splitstring[0] == "LDI": 
+                    self.raw_write(1, address)
+                elif splitstring[0] == "PRN":
+                    self.raw_write(2, address)
+                elif splitstring[0] == "HLT":
+                    self.raw_write(3, address)
+                elif splitstring[0] == "MUL":
+                    self.raw_write(4, address)
+                else:
+                    binary_mode = int(instruction, 2)
+                    self.raw_write(binary_mode, address)
+                address += 1
+        self.raw_write(3, address)
 
 
 
@@ -62,7 +73,12 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+        elif op == "SUB":
+            self.reg[reg_a] -= self.reg[reg_b]
+        elif op == "DIV":
+            self.reg[reg_a] /= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -86,33 +102,36 @@ class CPU:
 
         print()
 
-    def HLT(self):
+    def handle_HLT(self):
         print("Program successfully halted.")
         exit(0)
+
+    def handle_LDI(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.reg[operand_a] = operand_b
+        self.pc += 3
+    
+    def handle_PRN(self):
+        operand_a = self.ram_read(self.pc + 1)
+        data = self.reg[operand_a]
+        print(data)
+        self.pc += 2
+    
+    def handle_MUL(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.alu("MUL", operand_a, operand_b)
+        self.pc += 3
 
     def run(self):
         """Run the CPU."""
 
-        LDI = 0b10000010
-        PRN = 0b01000111
-        HLT = 0b00000001
 
-        pc = 0
         for i in self.ram:
-            if i == self.ram_read(pc):
-                if i == LDI:
-                    operand_a = self.ram_read(pc + 1)
-                    operand_b = self.ram_read(pc + 2)
-                    self.reg[operand_a] = operand_b
-                    pc += 3
-                elif i == PRN:
-                    operand_a = self.ram_read(pc + 1)
-                    data = self.reg[operand_a]
-                    print(data)
-                    pc += 2
-                elif i == HLT:
-                    print("Program successfully ran.")
-                    exit(0)
+            if i == self.ram_read(self.pc):
+                if self.branchtable[i]:
+                    self.branchtable[i]()
                 else:
                     print(f"ERROR: Unknown command in program at line {pc}.  Code: {i}")
                     exit(1)
