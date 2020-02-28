@@ -8,6 +8,10 @@ HLT = 3
 MUL = 4
 PUSH = 5
 POP = 6
+CMP = 7
+JMP = 8
+JEQ = 9
+JNE = 10
 
 class CPU:
     """Main CPU class."""
@@ -18,6 +22,10 @@ class CPU:
         self.pc = 0
         self.reg = [0] * 8
         self.ram = [0b00000000] * 256
+        self.fl = [0] * 3
+        self.e = self.fl[0]
+        self.l = self.fl[1]
+        self.g = self.fl[2]
         self.program = 0
         self.branchtable = {}
         self.branchtable[LDI] = self.handle_LDI
@@ -26,6 +34,10 @@ class CPU:
         self.branchtable[HLT] = self.handle_HLT
         self.branchtable[PUSH] = self.handle_PUSH
         self.branchtable[POP] = self.handle_POP
+        self.branchtable[CMP] = self.handle_CMP
+        self.branchtable[JMP] = self.handle_JMP
+        self.branchtable[JEQ] = self.handle_JEQ
+        self.branchtable[JNE] = self.handle_JNE
         """Stack Pointer."""
         self.reg[-1] = 242
 
@@ -50,27 +62,47 @@ class CPU:
             program = open(sys.argv[1])
 
         for instruction in program:
-                splitstring = instruction.split()
-                if splitstring == []:
-                    pass
-                elif splitstring[0] == "#":
-                    pass
-                elif splitstring[0] == "LDI": 
-                    self.raw_write(LDI, self.program)
-                elif splitstring[0] == "PRN":
-                    self.raw_write(PRN, self.program)
-                elif splitstring[0] == "HLT":
-                    self.raw_write(HLT, self.program)
-                elif splitstring[0] == "MUL":
-                    self.raw_write(MUL, self.program)
-                elif splitstring[0] == "PUSH":
-                    self.raw_write(PUSH, self.program)
-                elif splitstring[0] == "POP":
-                    self.raw_write(POP, self.program)
-                else:
-                    binary_mode = int(instruction, 2)
-                    self.raw_write(binary_mode, self.program)
+            splitstring = instruction.split()
+            if splitstring == []:
+                pass
+            elif splitstring[0] == "#":
+                pass
+            elif splitstring[0] == "LDI": 
+                self.raw_write(LDI, self.program)
                 self.program += 1
+            elif splitstring[0] == "PRN":
+                self.raw_write(PRN, self.program)
+                self.program += 1
+            elif splitstring[0] == "HLT":
+                self.raw_write(HLT, self.program)
+                self.program += 1
+            elif splitstring[0] == "MUL":
+                self.raw_write(MUL, self.program)
+                self.program += 1
+            elif splitstring[0] == "PUSH":
+                self.raw_write(PUSH, self.program)
+                self.program += 1
+            elif splitstring[0] == "POP":
+                self.raw_write(POP, self.program)
+                self.program += 1
+            elif splitstring[0] == "CMP":
+                self.raw_write(CMP, self.program)
+                self.program += 1
+            elif splitstring[0] == "JMP":
+                self.raw_write(JMP, self.program)
+                self.program += 1
+            elif splitstring[0] == "JEQ":
+                self.raw_write(JEQ, self.program)
+                self.program += 1
+            elif splitstring[0] == "JNE":
+                self.raw_write(JNE, self.program)
+                self.program += 1
+
+            else:
+                binary_mode = int(instruction, 2)
+                self.raw_write(binary_mode, self.program)
+                self.program += 1
+
         self.raw_write(HLT, self.program)
 
 
@@ -149,6 +181,38 @@ class CPU:
             exit(1)
         self.reg[-1] += 1
         self.pc += 2
+    def handle_CMP(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        if self.reg[operand_a] == self.reg[operand_b]:
+            self.e = 1
+            self.l = 0
+            self.g = 0
+        elif self.reg[operand_a] > self.reg[operand_b]:
+            self.e = 0
+            self.l = 0
+            self.g = 1
+        elif self.reg[operand_a] < self.reg[operand_b]:
+            self.e = 0
+            self.l = 1
+            self.g = 0
+        self.pc += 3
+    def handle_JMP(self):
+        operand_a = self.ram_read(self.pc + 1)
+        self.pc = self.reg[operand_a]
+    def handle_JEQ(self):
+        if self.e == 1:
+            operand_a = self.ram_read(self.pc + 1)
+            self.pc = self.reg[operand_a]
+        else:
+            self.pc += 2
+    def handle_JNE(self):
+        if self.e == 0:
+            operand_a = self.ram_read(self.pc + 1)
+            self.pc = self.reg[operand_a]
+        else:
+            self.pc += 2
+
 
     def run(self):
         """Run the CPU."""
