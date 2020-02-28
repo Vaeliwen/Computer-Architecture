@@ -2,41 +2,91 @@
 
 import sys
 
+LDI = 1
+PRN = 2
+HLT = 3
+MUL = 4
+PUSH = 5
+POP = 6
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        """Contains Registry, RAM, Program Counter, and branchtable."""
+        self.pc = 0
+        self.reg = [0] * 8
+        self.ram = [0b00000000] * 256
+        self.program = 0
+        self.branchtable = {}
+        self.branchtable[LDI] = self.handle_LDI
+        self.branchtable[PRN] = self.handle_PRN
+        self.branchtable[MUL] = self.handle_MUL
+        self.branchtable[HLT] = self.handle_HLT
+        self.branchtable[PUSH] = self.handle_PUSH
+        self.branchtable[POP] = self.handle_POP
+        """Stack Pointer."""
+        self.reg[-1] = 242
+
+
+    def ram_read(self, mar):
+        "Reads the selected address within the RAM."
+        value = self.ram[mar]
+        return value
+
+    def raw_write(self, mdr, mar):
+        """Takes in data and an address to write the data to."""
+        self.ram[mar] = mdr
+        return
 
     def load(self):
         """Load a program into memory."""
 
-        address = 0
-
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        if len(sys.argv) == 1:
+            print("ERROR: No program loaded.  Please specify program directory.")
+            exit(1)
+        else:
+            program = open(sys.argv[1])
 
         for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+                splitstring = instruction.split()
+                if splitstring == []:
+                    pass
+                elif splitstring[0] == "#":
+                    pass
+                elif splitstring[0] == "LDI": 
+                    self.raw_write(LDI, self.program)
+                elif splitstring[0] == "PRN":
+                    self.raw_write(PRN, self.program)
+                elif splitstring[0] == "HLT":
+                    self.raw_write(HLT, self.program)
+                elif splitstring[0] == "MUL":
+                    self.raw_write(MUL, self.program)
+                elif splitstring[0] == "PUSH":
+                    self.raw_write(PUSH, self.program)
+                elif splitstring[0] == "POP":
+                    self.raw_write(POP, self.program)
+                else:
+                    binary_mode = int(instruction, 2)
+                    self.raw_write(binary_mode, self.program)
+                self.program += 1
+        self.raw_write(HLT, self.program)
+
 
 
     def alu(self, op, reg_a, reg_b):
+        """Partially implemented mathematical functions."""
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+        elif op == "SUB":
+            self.reg[reg_a] -= self.reg[reg_b]
+        elif op == "DIV":
+            self.reg[reg_a] /= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -60,6 +110,57 @@ class CPU:
 
         print()
 
+    def handle_HLT(self):
+        print("Program successfully halted.")
+        exit(0)
+
+    def handle_LDI(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.reg[operand_a] = operand_b
+        self.pc += 3
+    
+    def handle_PRN(self):
+        operand_a = self.ram_read(self.pc + 1)
+        data = self.reg[operand_a]
+        print(data)
+        self.pc += 2
+    
+    def handle_MUL(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.alu("MUL", operand_a, operand_b)
+        self.pc += 3
+
+    def handle_PUSH(self):
+        operand_a = self.ram_read(self.pc + 1)
+        data = self.reg[operand_a]
+        self.raw_write(data, self.reg[-1])
+        if self.reg[-1] <= self.program:
+            print(f"ERROR: Stack Overflow at line {self.pc}.")
+        self.reg[-1] -= 1
+        self.pc += 2
+
+    def handle_POP(self):
+        operand_a = self.ram_read(self.pc + 1)
+        self.reg[operand_a] = self.ram_read(self.reg[-1])
+        if self.reg[-1] >= 242:
+            print(f"ERROR: Stack Underflow at line {self.pc}.")
+            exit(1)
+        self.reg[-1] += 1
+        self.pc += 2
+
     def run(self):
         """Run the CPU."""
-        pass
+
+
+        for i in self.ram:
+            if i == self.ram_read(self.pc):
+                if self.branchtable[i]:
+                    self.branchtable[i]()
+                else:
+                    print(f"ERROR: Unknown command in program at line {self.pc}.  RAM dump: {i}")
+                    exit(1)
+            else:
+                pass
+
